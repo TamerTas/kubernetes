@@ -683,3 +683,25 @@ const (
 	PodSelectorOpExists       PodSelectorOperator = "Exists"
 	PodSelectorOpDoesNotExist PodSelectorOperator = "DoesNotExist"
 )
+
+// ConfigData holds configuration data for pods to consume.
+type ConfigData struct {
+	unversioned.TypeMeta `json:",inline"`
+
+	// Standard object metadata; More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata.
+	api.ObjectMeta `json:"metadata,omitempty"`
+
+	// Data contains the configuration data.
+	// Each key must be a valid DNS_SUBDOMAIN with an optional leading dot.
+	Data map[string]string `json:"data,omitempty"`
+}
+
+// ConfigDataList is a resource containing a list of ConfigData objects.
+type ConfigDataList struct {
+	unversioned.TypeMeta `json:",inline"`
+
+	// More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+	unversioned.ListMeta `json:"metadata,omitempty"`
+
+	Items []ConfigData `json:"items"`
+}

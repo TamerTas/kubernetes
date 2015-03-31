@@ -607,3 +607,52 @@ func ValidateScale(scale *extensions.Scale) errs.ValidationErrorList {
 
 	return allErrs
 }
+
+// ValidateConfigDataName can be used to check whether the given ConfigData name is valid.
+// Prefix indicates this name will be used as part of generation, in which case
+// trailing dashes are allowed.
+func ValidateConfigDataName(name string, prefix bool) (bool, string) {
+	return apivalidation.NameIsDNSSubdomain(name, prefix)
+}
+
+// ValidateConfigData tests whether required fields in the ConfigData are set.
+func ValidateConfigData(cfg *extensions.ConfigData) errs.ValidationErrorList {
+	allErrs := errs.ValidationErrorList{}
+	allErrs = append(allErrs, apivalidation.ValidateObjectMeta(&cfg.ObjectMeta, true, ValidateConfigDataName).Prefix("metadata")...)
+
+	if len(cfg.Data) == 0 {
+		allErrs = append(allErrs, errs.NewFieldRequired("data"))
+	} else {
+		for key := range cfg.Data {
+			isValid, errStr := true, ""
+
+			// For keys with a leading dot.
+			if strings.HasPrefix(key, ".") {
+				isValid, errStr = apivalidation.NameIsDNSSubdomain(key[1:], false)
+			} else {
+				isValid, errStr = apivalidation.NameIsDNSSubdomain(key, false)
+			}
+
+			if !isValid {
+				allErrs = append(allErrs, errs.NewFieldInvalid("data", cfg.Data, errStr))
+			}
+		}
+	}
+
+	return allErrs
+}
+
+// ValidateConfigDataUpdate tests if required fields in the ConfigData are set.
+func ValidateConfigDataUpdate(oldCfg, newCfg *extensions.ConfigData) errs.ValidationErrorList {
+	allErrs := errs.ValidationErrorList{}
+	allErrs = append(allErrs, apivalidation.ValidateObjectMetaUpdate(&newCfg.ObjectMeta, &oldCfg.ObjectMeta).Prefix("metadata")...)
+
+	allErrs = append(allErrs, ValidateConfigData(newCfg)...)
+
+	// Reject updates that don't specify a resource version
+	if newCfg.ResourceVersion == "" {
+		allErrs = append(allErrs, errs.NewFieldInvalid("resourceVersion", newCfg.ResourceVersion, "resourceVersion must be specified for an update"))
+	}
+
+	return allErrs
+}

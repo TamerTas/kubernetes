@@ -1302,3 +1302,53 @@ func newInt(val int) *int {
 	*p = val
 	return p
 }
+
+func TestValidateConfigData(t *testing.T) {
+	newConfigData := func(name, namespace string, data map[string]string) extensions.ConfigData {
+		return extensions.ConfigData{
+			ObjectMeta: api.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Data: data,
+		}
+	}
+
+	var (
+		validConfigData = newConfigData("validname", "validns", map[string]string{"key": "value"})
+
+		emptyName     = newConfigData("", "validns", nil)
+		invalidName   = newConfigData("NoUppercaseOrSpecialCharsLike=Equals", "validns", nil)
+		emptyNs       = newConfigData("validname", "", nil)
+		invalidNs     = newConfigData("validname", "NoUppercaseOrSpecialCharsLike=Equals", nil)
+		invalidKey    = newConfigData("validname", "validns", map[string]string{"a..b": "value"})
+		leadingDotKey = newConfigData("validname", "validns", map[string]string{".ab": "value"})
+		dotKey        = newConfigData("validname", "validns", map[string]string{".": "value"})
+		doubleDotKey  = newConfigData("validname", "validns", map[string]string{"..": "value"})
+	)
+
+	tests := map[string]struct {
+		cfg     extensions.ConfigData
+		isValid bool
+	}{
+		"valid":             {validConfigData, true},
+		"leading dot key":   {leadingDotKey, true},
+		"empty name":        {emptyName, false},
+		"invalid name":      {invalidName, false},
+		"invalid key":       {invalidKey, false},
+		"empty namespace":   {emptyNs, false},
+		"invalid namespace": {invalidNs, false},
+		"dot key":           {dotKey, false},
+		"double dot key":    {doubleDotKey, false},
+	}
+
+	for name, tc := range tests {
+		errs := ValidateConfigData(&tc.cfg)
+		if tc.isValid && len(errs) > 0 {
+			t.Errorf("%v: unexpected error: %v", name, errs)
+		}
+		if !tc.isValid && len(errs) == 0 {
+			t.Errorf("%v: unexpected non-error", name)
+		}
+	}
+}
