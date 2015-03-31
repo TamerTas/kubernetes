@@ -615,6 +615,8 @@ type DownwardAPIVolumeFile struct {
 	Path string `json:"path"`
 	// Required: Selects a field of the pod: only annotations, labels, name and  namespace are supported.
 	FieldRef ObjectFieldSelector `json:"fieldRef"`
+	// Required: Selects a field of the pod; only name and namespace are supported.
+	ConfigDataRef *ConfigDataSelector `json:"configDataRef"`
 }
 
 // ContainerPort represents a network port in a single container
@@ -664,6 +666,8 @@ type EnvVar struct {
 type EnvVarSource struct {
 	// Required: Selects a field of the pod; only name and namespace are supported.
 	FieldRef *ObjectFieldSelector `json:"fieldRef"`
+	// Required: Selects a field of the pod; only name and namespace are supported.
+	ConfigDataRef *ConfigDataSelector `json:"configDataRef"`
 }
 
 // ObjectFieldSelector selects an APIVersioned field of an object.

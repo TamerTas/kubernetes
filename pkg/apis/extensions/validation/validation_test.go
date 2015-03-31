@@ -1150,3 +1150,50 @@ func newInt(val int) *int {
 	*p = val
 	return p
 }
+
+func TestValidateConfigData(t *testing.T) {
+	validConfigData := func(name, namespace string, data map[string]string) experimental.ConfigData {
+		return api.ConfigData{
+			ObjectMeta: api.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Data: data,
+		}
+	}
+
+	var (
+		emptyName     = validConfigData("", "validNS", nil)
+		invalidName   = validConfigData("NoUppercaseOrSpecialCharsLike=Equals", "validNS", nil)
+		emptyNs       = validConfigData("validName", "", nil)
+		invalidNs     = validConfigData("validName", "NoUppercaseOrSpecialCharsLik=Equals", nil)
+		invalidKey    = validConfigData("validName", "validNS", map[string]string{"a..b": "value"})
+		leadingDotKey = validConfigData("validName", "validNS", map[string]string{".ab": "value"})
+		dotKey        = validConfigData("validName", "validNS", map[string]string{".": "value"})
+		doubleDotKey  = validConfigData("validName", "validNS", map[string]string{"..": "value"})
+	)
+
+	tests := map[string]struct {
+		config experimental.ConfigData
+		valid  bool
+	}{
+		"valid":             {validConfigData(), true},
+		"empty name":        {emptyName, false},
+		"invalid name":      {invalidName, false},
+		"empty namespace":   {emptyNs, false},
+		"invalid namespace": {invalidNs, false},
+		"leading dot key":   {leadingDotKey, true},
+		"dot key":           {dotKey, false},
+		"double dot key":    {doubleDotKey, false},
+	}
+
+	for name, tc := range tests {
+		errs := ValidateConfigData(&tc.configData)
+		if tc.valid && len(errs) > 0 {
+			t.Errorf("%v: unexpected error: %v", name, errs)
+		}
+		if !tc.valid && len(errs) == 0 {
+			t.Errorf("%v: unexpected non-error", name)
+		}
+	}
+}

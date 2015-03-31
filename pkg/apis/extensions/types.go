@@ -685,3 +685,32 @@ const (
 	PodSelectorOpExists       PodSelectorOperator = "Exists"
 	PodSelectorOpDoesNotExist PodSelectorOperator = "DoesNotExist"
 )
+
+type ConfigDataSelector struct {
+	APIVersion      string `json:"apiVersion, omitempty"`
+	ConfigDataName  string `json:"from"`
+	ConfigDataField string `json:"key"`
+}
+
+// ConfigDataVolumeSource adapts a ConfigData into a VolumeSource.
+//
+// The contents of the target ConfigData's Data fields will be presented in a volume
+// as files using the keys in the Data field as the file names.
+type ConfigDataVolumeSource struct {
+	// ConfigData name to use in the Pod's namespace.
+	ConfigDataName string `json:"configDataName"`
+}
+
+type ConfigData struct {
+	api.TypeMeta   `json:",inline"`
+	api.ObjectMeta `json:"metadata,omitempty"`
+
+	Data map[string]string `json:"data,omitempty"`
+}
+
+type ConfigDataList struct {
+	api.TypeMeta `json:",inline"`
+	api.ListMeta `json:"metadata,omitempty"`
+
+	Items []ConfigData `json:"items"`
+}
