@@ -6,6 +6,10 @@ A generic ``Config`` object to store command-line flags and environment variable
 that is used for configuration of ``Kubernetes`` components living on top of ``etcd``
 is proposed in this proposal.
 
+The main focus of this proposal to solve dynamic configuration problem of components 
+and encapsulate configuration information to increase overall system quality and to 
+create a flexible configuration model for ``Kubernetes`` components.
+
 ## Problem
 
 Currently command-line flags and environment variables are used for component configurations in ``Kubernetes``.
@@ -20,13 +24,17 @@ problems with the current approach are:
 
 A new ``Config`` resource is proposed to solve the aforementioned problems 
 that is stored in ``etcd`` and distributed to interested/necessary components 
-through the ``APIServer``. ``Config`` resource will be mounted as a new volume 
-and will be managed by a volume plug-in that handles the ``APIServer`` communications.
+through the API server. ``Config`` resource will be mounted as a new volume 
+and will be managed by a side-car container that communicates with the API server.
+
+The ``Config`` resource architecture will be very similar to that of ``Secrets``.
+However, the ``Config`` resource will be dynamic, meaning that different components consuming
+the same ``Config`` will be notified about the changes to that particular resource.
 
 ### Advantages
 
 * Reusable across different components.
-* Easy distribution thanks to ``etcd``, a highly-available KVL store.
+* Easy distribution through the API server.
 * By leveraging the power of ``/watch API`` along with the new resource, we can change component configurations dynamically.
 * Layer of abstraction that gets rid of the global state currently used for command-line flags and environment variables.
 
@@ -35,39 +43,45 @@ and will be managed by a volume plug-in that handles the ``APIServer`` communica
 A new resource for ``Config`` will be added to the ``API``:
 
 ```go
-    type Config struct {
-        TypeMeta   `json:",inline" yaml:",inline"`
-        ObjectMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	type Config struct {
+		TypeMeta   `json:",inline"`
+		ObjectMeta `json:"metadata,omitempty"`
 
-        // Flags contains command-line flags.
-        Flags     map[string]string `json:"flags,omitempty" yaml:"flags"`
+		// Flags contains command-line flags.
+		Flags pflag.FlagSet `json:"flags,omitempty"`
 
-        // Variables contains environment variables.
-        Variables map[string]string `json:"variables,omitempty" yaml:"flags"`
-    }
+		// Variables contains environment variables.
+		Env []EnvVar `json:"env,omitempty"`
+	}
 
-    type ConfigList struct {
-        TypeMeta `json:",inline" yaml:",inline"`
-        ListMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	type ConfigList struct {
+		TypeMeta `json:",inline"`
+		ListMeta `json:"metadata,omitempty"`
 
-        Items []Config `json:"items" yaml:"items"`
-    }
+		Items []Config `json:"items"`
+	}
 ```
 ``Registry`` interface will be added to accompany the ``Config`` resource.  
 ``Config`` information will be stored in ``etcd`` by default.
 
-### Volume Plug-in
+### Validation
 
-A new volume plug-in will be added to handle ``Config`` volumes.  
-Plug-in will require access to the ``APIserver`` to retrieve the configuration
-parameters. Responsibilities of the said plug-in will be:
+``Flags`` and ``Env`` are planned to be validated by type-checking at the moment for types provided
+beforehand for planned configuration parameters (``maxPodNumber`` => ``int``).
 
-* Retrieving ``Config`` from the ``APIServer``.
-* Loading the configuration into the volume.
+### Volume Source
+
+A new ``ConfigSource`` type of volume source containing the ``Config`` object will be added to the ``VolumeSource`` struct in the API:
+
+```go
+	type ConfigVolumeSource struct {
+        ConfigName string `json:"configName"`
+	}
+```
 
 ### Configuration
 
-Configured component (with ``Kubectl`` or possibly other means) will send it's configuration to the ``APIServer``.
+Configured component (with ``Kubectl`` or possibly other means) will send it's configuration to the API server.
 
 ```json
 {
@@ -85,13 +99,32 @@ Configured component (with ``Kubectl`` or possibly other means) will send it's c
 }
 ```
 
-### Validation
+The owner of the configuration will be able mutate the configuration and it will be immutable from the
+perspective of other components (**Note:** A ``ConfigController`` might be added to undertake this responsibility).
 
-``Flags`` and ``Variables`` are planned to be validated by type-checking at the moment for types provided
-beforehand for planned configuration parameters (``maxPodNumber`` => ``int``).
+Consumers will have a container listening to the API server for configuration changes and reload them after a change.
+
+After the configuration is loaded the environment variables and flags will be visible inside the main container.
+The application will then be responsible from using the data.
+
+### Dynamic Configuration
+
+A side-car container will watch the API server and update the ``ConfigVolumeSource``.
+It will make the configuration visible inside the container and propagate updates to
+the API server if needs be.
+
+The said container's responsibilities will be as follows:
+
+* Retrieving ``Config`` from the API server.
+* Loading the configuration into the volume.
+* Sendig the resource to the API server.
 
 ### Limitations
 
-1. Possibly requires a ``ConfigController`` for synchronization that watches the ``Config`` object
-through the ``/watch API`` and restarts configured components when configuration resource is modified.
+1. Might require a ``ConfigController`` for synchronization that restarts configured components when configuration resource is modified.
 
+### Considerations
+
+* ``Config`` object might easily be extended to include other configuration components used in ``Kubernetes``
+ to configure it's behaviour one way or another (e.g. config files).
+* Plug-in architecture might be used instead of side-car containers if long-running plug-in support is added.
