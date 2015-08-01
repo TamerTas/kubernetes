@@ -6,14 +6,14 @@ A generic ``Config`` object to store command-line flags and environment variable
 that is used for configuration of ``Kubernetes`` components living on top of ``etcd``
 is proposed in this proposal.
 
-The main focus of this proposal to solve dynamic configuration problem of components 
-and encapsulate configuration information to increase overall system quality and to 
+The main focus of this proposal to solve dynamic configuration problem of components
+and encapsulate configuration information to increase overall system quality and to
 create a flexible configuration model for ``Kubernetes`` components.
 
 ## Problem
 
 Currently command-line flags and environment variables are used for component configurations in ``Kubernetes``.
-But, this approach is not suitable for a distributed computing environment. Specifically the 
+But, this approach is not suitable for a distributed computing environment. Specifically the
 problems with the current approach are:
 
 * Hard to synchronize across replicated components.
@@ -22,9 +22,9 @@ problems with the current approach are:
 
 ## Solution
 
-A new ``Config`` resource is proposed to solve the aforementioned problems 
-that is stored in ``etcd`` and distributed to interested/necessary components 
-through the API server. ``Config`` resource will be mounted as a new volume 
+A new ``Config`` resource is proposed to solve the aforementioned problems
+that is stored in ``etcd`` and distributed to interested/necessary components
+through the API server. ``Config`` resource will be mounted as a new volume
 and will be managed by a side-car container that communicates with the API server.
 
 The ``Config`` resource architecture will be very similar to that of ``Secrets``.
@@ -43,15 +43,21 @@ the same ``Config`` will be notified about the changes to that particular resour
 A new resource for ``Config`` will be added to the ``API``:
 
 ```go
+    type ConfigType int
+    const (
+        ConfigTypeOpaque ConfigType = 1 << iota
+        ConfigTypeEnvVar
+        ConfigTypeFlag
+        ConfigTypeBLOB
+    )
+
 	type Config struct {
 		TypeMeta   `json:",inline"`
 		ObjectMeta `json:"metadata,omitempty"`
 
-		// Flags contains command-line flags.
-		Flags pflag.FlagSet `json:"flags,omitempty"`
+        Data map[string]string `json:"data,omitempty"`
 
-		// Variables contains environment variables.
-		Env []EnvVar `json:"env,omitempty"`
+        Type ConfigType `json:"type,omitempty"`
 	}
 
 	type ConfigList struct {
@@ -63,11 +69,6 @@ A new resource for ``Config`` will be added to the ``API``:
 ```
 ``Registry`` interface will be added to accompany the ``Config`` resource.  
 ``Config`` information will be stored in ``etcd`` by default.
-
-### Validation
-
-``Flags`` and ``Env`` are planned to be validated by type-checking at the moment for types provided
-beforehand for planned configuration parameters (``maxPodNumber`` => ``int``).
 
 ### Volume Source
 
@@ -102,9 +103,10 @@ Configured component (with ``Kubectl`` or possibly other means) will send it's c
 The owner of the configuration will be able mutate the configuration and it will be immutable from the
 perspective of other components (**Note:** A ``ConfigController`` might be added to undertake this responsibility).
 
-Consumers will have a container listening to the API server for configuration changes and reload them after a change.
+Consumers will have a side-car container watching the API for changes to `Config`
+and reload the `Config` after a change.
 
-After the configuration is loaded the environment variables and flags will be visible inside the main container.
+After the `Config` is loaded the data will be visible inside the main container.
 The application will then be responsible from using the data.
 
 ### Dynamic Configuration
@@ -117,7 +119,7 @@ The said container's responsibilities will be as follows:
 
 * Retrieving ``Config`` from the API server.
 * Loading the configuration into the volume.
-* Sendig the resource to the API server.
+* Sending the resource to the API server.
 
 ### Limitations
 
