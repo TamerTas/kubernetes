@@ -181,6 +181,40 @@ New pods created by the ExampleReplicationController will use the ``PodConfigura
 
 When the ``PodConfiguration`` objects are modified the new object will be retrieved and loaded into the component.
 
+
+#### Kubelet Configuration
+
+An example ``kubelet`` configuration is as follows:
+
+```json
+{
+    "apiVersion": "v1",
+	"name": "KubeletConfigurationExample",
+    "kind": "ConfigData",
+    "data": {
+        "ADDRESS": "0.0.0.0",
+        "PORT": "8888",
+        "API_SERVERS": "10.240.13.14:8998, 10.240.51.5:8998",
+        "REGISTER_NODE": "true",
+        "TLS_CERT_FILE": "TLS_CERT_FILE_CONTENTS"
+    }
+}
+```
+
+In order to use the ``KubeletConfigurationExample``, first we persist the object.
+```bash
+kubectl create -f kubelet_config_data.json
+```
+
+After the object is created, You can use this object when creating new kubelets,
+```bash
+kubelet --config-data=KubeletConfigurationExample
+```
+
+The new ``kubelet`` will be able to use the the ``Data`` fields inside the ``ConfigData`` object for its configuration.
+
+When the `KubeletConfigurationExample` object is modified the new object will be retrieved and loaded into the component.
+
 ### Dynamic Configuration
 
 Any long-running system has mutating specification over time. In order to facilitate this functionality,
