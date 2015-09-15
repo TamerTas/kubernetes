@@ -5,9 +5,12 @@
 This proposal proposes a generic configuration object named ``ConfigData`` stored inside ``etcd`` that
 stores data used for the configuration of ``Kubernetes`` components.
 
-The main focus of this proposal to solve dynamic configuration problem of components
-and encapsulate configuration information to decrease component configuration complexity, 
-to increase overall system quality, and to create a flexible configuration model for ``Kubernetes`` components.
+The main focus points of this proposal are:
+
+* Solving dynamic configuration problem of components.
+* Encapsulate configuration information to decrease component configuration complexity.
+* Create a flexible configuration model for ``Kubernetes`` components.
+* Increase overall system quality.
 
 ## Motivation
 
@@ -70,12 +73,15 @@ A new resource for ``ConfigData`` will be added to the API:
 		Items []ConfigData `json:"items"`
 	}
 ```
+
+``configDataRef`` fields will be added to ``containers.volumeMounts.downwardAPI.volumeMounts`` and ``containers.env``
+fields for describing the consumption of ``ConfigData`` fields in component configuration files.
 ``Registry`` interface will be added to accompany the ``ConfigData`` resource.  
 ``ConfigData`` information will be stored in ``etcd`` by default.
 
 ### Volume Source
 
-A new ``ConfigDataSource`` type of volume source containing the ``ConfigData`` object will be added to the ``VolumeSource`` struct in the API:
+A new ``ConfigDataVolumeSource`` type of volume source containing the ``ConfigData`` object will be added to the ``VolumeSource`` struct in the API:
 
 ```go
 	type ConfigDataVolumeSource struct {
@@ -83,8 +89,7 @@ A new ``ConfigDataSource`` type of volume source containing the ``ConfigData`` o
 	}
 ```
 
-This volume source will be made available and updated by using the downward API volume plug-in (might require some generalizations).
-
+**Note:** The update logic used in the downward API volume plug-in will be extracted and re-used in the volume plug-in for ``ConfigData``.
 
 ## Creating ConfigData
 ``ConfigData`` can be created in two ways explicitly and implicitly.
@@ -92,15 +97,15 @@ This volume source will be made available and updated by using the downward API 
 ### Backwards-Compatibility
 In order to smooth the transaction of component configuration from other means to ``ConfigData``
 and preserve backwards-compatibility, user will be able to configure components the old way
-which is going to be transformed into a ``ConfigData`` object implicitly which can be updated and reused.
+and use an optional ``--write-config=<path>`` flag to create a ``ConfigData`` object containing
+the given configuration options to ``<path>``, which can be created by invoking ``kubectl create -f <path>``.
 
-For example, a ``kubelet`` is configured currently as follows:
+For example, a ``kubelet`` will be configured as follows:
 ```bash
-kubelet --address=0.0.0.0 --port=8888 --api-servers=10.240.13.14:8998,10.240.51.5:8998 --register-node=true
+kubelet --address=0.0.0.0 --port=8888 --api-servers=10.240.13.14:8998,10.240.51.5:8998 --register-node=true --write-file=kubelet-config.yaml
 ```
 
-After this proposal is integrated, when you invoke the same commands,
-a ``ConfigData`` object will be created in the API server.
+The persisted object will have the following contents for the given configuration parameters:
 ```json
 {
     "apiVersion": "v1",
@@ -116,9 +121,7 @@ a ``ConfigData`` object will be created in the API server.
 
 An identically configured kubelet can be created as such from now on:
 ```bash
-# KubeletConfigurationRef is not clear whether it will be automatically
-# generated or it will be a label selector (e.g. use the config-data of component X).
-kubelet --config-data=KubeletConfigurationRef
+kubelet --config-data=kubelet-config.yaml
 ```
 
 The command-line flags given to the ``kubelet`` will be transformed to ``Data`` fields
@@ -135,10 +138,9 @@ The following file ``pod-config.json`` contains data intended to be consumed as 
     "name": "PodConfiguration",
     "kind": "ConfigData",
     "data": {
-        "API_SERVER": "10.240.13.14:8998",
-        "API_VERSION": "v1",
-        "DB_HOST": "10.240.55.3",
-        "DB_PORT": "3306"
+        "server_address": "10.240.13.14:8998",
+        "db_address": "10.240.55.3",
+        "db_port": "3306"
     }
 }
 ```
@@ -167,43 +169,29 @@ with the same name found in the system if consumed as environment variables.
 
 ## Use Cases
 
-#### Pod Configuration
+#### Consuming ConfigData as mounted volumes
 
+``PodConfigurationVol`` is intended to be used as a mounted volume containing two files with their respective contents.
 ```json
 {
     "apiVersion": "v1",
-    "name": "PodConfiguration1",
+    "name": "PodConfigurationVol",
     "kind": "ConfigData",
     "data": {
-        "API_SERVER": "10.240.13.14:8998",
-        "API_VERSION": "v1",
-        "DB_HOST": "10.240.55.3",
-        "DB_PORT": "3306"
+        "component_config": "COMPONENT_CONFIG_STRING_CONTENTS",
+        "component_metadata": "COMPONENT_METADATA_STRING_CONTENTS"
     }
 }
 ```
-``PodConfiguration1`` is intended to be consumed as environment variable key/value pairs.
-
-```json
-{
-    "apiVersion": "v1",
-    "name": "PodConfiguration2",
-    "kind": "ConfigData",
-    "data": {
-        "config.yaml": "CONFIG_YAML_STRING_CONTENTS",
-        "spec.yaml": "SPEC_YAML_STRING_CONTENTS"
-    }
-}
-```
-``PodConfiguration2`` is intended to be used as a mounted volume containing two files with their respective contents.
 
 Then, configuration objects are persisted to the API server as follows:
 ```bash
-kubectl create -f pod-configuration-1.json 
-kubectl create -f pod-configuration-2.json
+kubectl create -f pod-configuration-vol.json 
 ```
 
-We create a replication controller specification that creates pods using these two configuration objects:
+ExampleReplicationController starts 2 replicas that runs the `busybox` container.
+In this use case, the ``ConfigData`` object will be mounted as a volume and contain
+two files named "config.yaml" and "metadata.json".
 ```yaml
 apiVersion: v1
 kind: ReplicationController
@@ -212,51 +200,120 @@ metadata:
 spec:
   replicas: 2
   selector:
-    app: dummy-app
+    app: busybox
   template:
     metadata:
       labels:
-        app: dummy-app
+        app: busybox
     spec:
-      # New pods will be created using the ConfigData objects.
-      # Each config object will be updated be it a volume or environment variables.
-      # But, some of them might require a restart on update.
-      # Note: If multiple env ConfigData objects are specified, let's call them Env1 and Env2.
-      #       If both of them contains a same named environment variable, Env2 will be the final one.
-      #       If Env1 is updated, the reload process will be Env1 first, then Env2.
-      #       Even though Env2 is not updated, the 'env' ConfigData objects are reloaded in the
-      #       order they are specified to prevent Env1 from overriding any of the variables in Env2.
-      # TODO: 'config-data' is a separate field because there are different ways to consume the object
-      #       and 'volume' might be a bit too specific. More discussions on this will be needed.
-      config-data:
-          env:
-          # PodConfiguration1 is loaded as environment variables into the
-          # main container of the pod. It requires a restart when the object is updated
-          - name: PodConfiguration1
-            on_update: restart
-          volume:
-          # PodConfiguration2 is mounted as a new volume to the main container of the pod.
-          - name: PodConfiguration2
       containers:
-      - name: dummy-app
-        image: dummy-app
+      - name: busybox
+        image: gcr.io/google_containers/busybox
         ports:
         - containerPort: 80
+        volumeMounts:
+        - name: configDataVol
+          downwardAPI:
+            items:
+              - path: "config.yaml"
+                configDataRef:
+                  from: PodConfigurationVol
+                  fieldPath: component_config
+              - path: "metadata.json"
+                configDataRef:
+                  from: PodConfigurationVol
+                  fieldPath: component_metadata
 ```
-
-example-replication-controller starts 2 replicas that runs the `dummy-app` container.
-Pod template states how these pods will make use of the ``ConfigData`` objects.
 
 Now, we create the replication controller:
 ```bash
 kubectl create -f example-replication-controller.yaml
 ```
 
-New pods created by the ExampleReplicationController will use the ``PodConfiguration`` objects when starting/replicating pods.
+New pods created by the ExampleReplicationController will use the ``PodConfigurationVol`` objects when starting/replicating pods.
 
-When the ``PodConfiguration`` objects are modified the new object will be retrieved and loaded into the component.
+``PodConfigurationVol`` object will be watched for any modifications and the mounted volumes will be updated if there are any modifications.
+
+#### Consuming ConfigData as environment variables
+
+```json
+{
+    "apiVersion": "v1",
+    "name": "PodConfigurationEnv",
+    "kind": "ConfigData",
+    "data": {
+        "api_server": "10.240.13.14:8998",
+        "api_version": "v1",
+        "db_host": "10.240.55.3",
+        "db_port": "3306"
+    }
+}
+```
+``PodConfigurationEnv`` is intended to be consumed as environment variable key/value pairs.
+
+We create our ``ConfigData`` object.
+```bash
+kubectl create -f pod-configuration-env.json
+```
+
+ExampleReplicationController starts 2 replicas that runs the `busybox` container.
+In this use case, the ``ConfigData`` object will be consumed as 4 environment variables.
+```yaml
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: ExampleReplicationController
+spec:
+  replicas: 2
+  selector:
+    app: busybox
+  template:
+    metadata:
+      labels:
+        app: busybox
+    spec:
+      containers:
+      - name: busybox
+        image: gcr.io/google_containers/busybox
+        ports:
+        - containerPort: 80
+        env:
+        - name: API_SERVER
+          valueFrom:
+            configDataRef:
+              from: PodConfigurationEnv
+              key: api_servers
+        - name: API_VERSION
+          valueFrom:
+            configDataRef:
+              from: PodConfigurationEnv
+              key: api_version
+        - name: DB_HOST
+          valueFrom:
+            configDataRef:
+              from: PodConfigurationEnv
+              key: postgresql_host
+        - name: DB_PORT
+          valueFrom:
+            configDataRef:
+              from: PodConfigurationEnv
+              key: postgresql_port
+```
+
+Now, we create the replication controller:
+```bash
+kubectl create -f example-replication-controller.yaml
+```
+
+New pods created by the ``ExampleReplicationController`` will use the ``PodConfigurationEnv`` objects when starting/replicating pods.
+
+``PodConfigurationEnv`` object will be watched for any modifications and the currently consumed environment variables will be updated.
+
+### Future Improvements
+
+* Additional specification parameters can be added to the API for describing the expected behavior after
+a modification to the consumed ``ConfigData`` object (e.g. 'on-restart: update').
 
 ### Considerations
 
-* ``ConfigData`` object might easily be extended to include other configuration components used in ``Kubernetes`` to configure it's behaviour one way or another (e.g. config files).
 * Multiple ``ConfigData`` objects can be supplied to the component for overriding or different consuming purposes (one for environment variables the other to be mounted as a volume)
