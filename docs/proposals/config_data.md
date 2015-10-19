@@ -23,11 +23,16 @@ Specifically the problems with the current approach are:
 * Hard to change dynamically as needed by continuous services.
 * Hard to change in different versions that may support different configuration options.
 
+## Use Cases
+
+1. Be able to load API resources as environment variables into a component.
+2. Be able to load API resources as mounted volumes into a component.
+3. Be able to update mounted volumes after a change to the API resource.
+4. Be able to configure components using an API resource instead of command-line flags.
+
 ## Solution
 
-A new ``ConfigData`` resource is proposed to solve the aforementioned problems
-that is stored in ``etcd`` and distributed to interested/necessary components
-through the API server. 
+A new ``ConfigData`` API resource is proposed to address these problems.
 
 The ``ConfigData`` architecture will be very similar to that of ``Secrets``.
 
@@ -39,11 +44,11 @@ variables to a container through the use of the downward API.
 Any long-running system has mutating specification over time. In order to facilitate this functionality,
 ``ConfigData`` will be versioned and updates will automatically made available to the container (downward API).
 
-``resourceVersion`` (Found in ``ObjectMetadata``) of the ``ConfigData`` object will be updated by the server every time the object is modified.
+``resourceVersion`` (Found in ``ObjectMetadata``) of the ``ConfigData`` object will be updated by the API server every time the object is modified.
 After an update, modifications will be made visible to the consumer container. If the consumer uses the ``Data`` pairs
 only for initialization or during starting process, A rolling-update might be necessary to update the components.
 
-It is then the consumer component's responsilibity to make use of the updated data
+It is then the consumer component's responsibility to make use of the updated data
 once it is made visible (or perform a rolling-update on consumers of that object).
 
 ### Advantages
@@ -74,8 +79,9 @@ A new resource for ``ConfigData`` will be added to the API:
 	}
 ```
 
-``configDataRef`` fields will be added to ``containers.volumeMounts.downwardAPI.volumeMounts`` and ``containers.env``
-fields for describing the consumption of ``ConfigData`` fields in component configuration files.
+A new API resource selector (ResourceSelector) will be added to select objects and fields from those objects
+for consuming API resources through the downward API.
+
 ``Registry`` interface will be added to accompany the ``ConfigData`` resource.  
 ``ConfigData`` information will be stored in ``etcd`` by default.
 
@@ -131,11 +137,11 @@ inside a new ``ConfigData`` object for its configuration.
 component that is going to migrate to ``ConfigData``.
 
 ### Explicit Creation
-The following file ``pod-config.json`` contains data intended to be consumed as environment variables.
+The following file ``pod-config-example.json`` contains data intended to be consumed as environment variables.
 ```json
 {
     "apiVersion": "v1",
-    "name": "PodConfiguration",
+    "name": "pod-config-example",
     "kind": "ConfigData",
     "data": {
         "server_address": "10.240.13.14:8998",
@@ -150,7 +156,7 @@ To persist this ConfigData object to the API server, use the following command:
 kubectl create -f pod-config.json
 ```
 
-Now, the ``PodConfiguration`` ConfigData object is stored in ``etcd``.
+Now, the ``pod-config-example`` ConfigData object is stored in ``etcd``.
 The new object can be accessed, referenced, used and updated through the API server.
 
 ## Configuration Workflow
@@ -167,15 +173,15 @@ The component configuration workflow is given below:
 **Note**: Environment variables specified in ``ConfigData`` will override the environment variables
 with the same name found in the system if consumed as environment variables.
 
-## Use Cases
+## Examples
 
 #### Consuming ConfigData as mounted volumes
 
-``PodConfigurationVol`` is intended to be used as a mounted volume containing two files with their respective contents.
+``pod-config-volume`` is intended to be used as a mounted volume containing two files with their respective contents.
 ```json
 {
     "apiVersion": "v1",
-    "name": "PodConfigurationVol",
+    "name": "pod-config-volume",
     "kind": "ConfigData",
     "data": {
         "component_config": "COMPONENT_CONFIG_STRING_CONTENTS",
@@ -207,22 +213,24 @@ spec:
         app: busybox
     spec:
       containers:
-      - name: busybox
-        image: gcr.io/google_containers/busybox
-        ports:
-        - containerPort: 80
-        volumeMounts:
-        - name: configDataVol
-          downwardAPI:
-            items:
-              - path: "config.yaml"
-                configDataRef:
-                  from: PodConfigurationVol
-                  fieldPath: component_config
-              - path: "metadata.json"
-                configDataRef:
-                  from: PodConfigurationVol
-                  fieldPath: component_metadata
+        - name: busybox
+          image: gcr.io/google_containers/busybox
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: config-data-volume
+      volumes:
+      - name: config-data-volume
+        downwardAPI:
+          items:
+            - path: "config.yaml"
+              resourceRef:
+                from: pod-config-volume
+                fieldPath: component_config
+            - path: "metadata.json"
+              resourceRef:
+                from: pod-config-volume
+                fieldPath: component_metadata
 ```
 
 Now, we create the replication controller:
@@ -230,16 +238,16 @@ Now, we create the replication controller:
 kubectl create -f example-replication-controller.yaml
 ```
 
-New pods created by the ExampleReplicationController will use the ``PodConfigurationVol`` objects when starting/replicating pods.
+New pods created by the ExampleReplicationController will use the ``pod-config-volume`` objects when starting/replicating pods.
 
-``PodConfigurationVol`` object will be watched for any modifications and the mounted volumes will be updated if there are any modifications.
+``pod-config-volume`` object will be watched for any modifications and the mounted volumes will be updated if there are any modifications.
 
 #### Consuming ConfigData as environment variables
 
 ```json
 {
     "apiVersion": "v1",
-    "name": "PodConfigurationEnv",
+    "name": "pod-config-env",
     "kind": "ConfigData",
     "data": {
         "api_server": "10.240.13.14:8998",
@@ -249,7 +257,7 @@ New pods created by the ExampleReplicationController will use the ``PodConfigura
     }
 }
 ```
-``PodConfigurationEnv`` is intended to be consumed as environment variable key/value pairs.
+``pod-config-env`` is intended to be consumed as environment variable key/value pairs.
 
 We create our ``ConfigData`` object.
 ```bash
@@ -280,23 +288,23 @@ spec:
         env:
         - name: API_SERVER
           valueFrom:
-            configDataRef:
-              from: PodConfigurationEnv
+            resourceRef:
+              from: pod-config-env
               key: api_servers
         - name: API_VERSION
           valueFrom:
-            configDataRef:
-              from: PodConfigurationEnv
+            resourceRef:
+              from: pod-config-env
               key: api_version
         - name: DB_HOST
           valueFrom:
-            configDataRef:
-              from: PodConfigurationEnv
+            resourceRef:
+              from: pod-config-env
               key: postgresql_host
         - name: DB_PORT
           valueFrom:
-            configDataRef:
-              from: PodConfigurationEnv
+            resourceRef:
+              from: pod-config-env
               key: postgresql_port
 ```
 
@@ -305,9 +313,9 @@ Now, we create the replication controller:
 kubectl create -f example-replication-controller.yaml
 ```
 
-New pods created by the ``ExampleReplicationController`` will use the ``PodConfigurationEnv`` objects when starting/replicating pods.
+New pods created by the ``ExampleReplicationController`` will use the ``pod-config-env`` objects when starting/replicating pods.
 
-``PodConfigurationEnv`` object will be watched for any modifications and the currently consumed environment variables will be updated.
+``pod-config-env`` object will be watched for any modifications and the currently consumed environment variables will be updated.
 
 ### Future Improvements
 
