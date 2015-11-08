@@ -48,12 +48,11 @@ once it is made visible (or perform a rolling-update on consumers of that object
 
 ### Advantages
 
-* Reusable across different components.
 * Easy distribution through the API server.
+* Provides configuration data in a consumer-agnostic manner.
 * Persistent configuration information through API versioning.
 * Ability to use ``Kubernetes`` authentication and security policies with configuration objects.
-* By leveraging the power of ``/watch`` API along with the new resource, we can change component configurations dynamically.
-* Layer of abstraction that gets rid of the global state currently used for command-line flags and environment variables.
+* By leveraging the power of ``/watch`` API or watching the volume, container processes can implement responsiveness to configuration changes.
 
 ## API Resource
 
@@ -119,17 +118,27 @@ The new object can be accessed, referenced, used and updated through the API ser
 
 ## Configuration Workflow
 
+### Environment Variables
+
 The component configuration workflow is given below:
 
 1. ``ConfigData`` object is created through the API server.
 2. New components using the ``ConfigData`` object are created.
 3. ``ConfigData`` object is retrieved using the downward API.
-4. ``Data`` key/value pairs of ``ConfigData`` will be exposed as either environment variables (``EnvVarSource``) or as a new volume (``ConfigDataVolumeSource``).
+4. ``Data`` key/value pairs of ``ConfigData`` will be exposed as environment variables (``EnvVarSource``).
 5. API server is watched for modifications to the object.
 6. After a modification, actions 3, 4, and 5 are repeated.
 
-**Note**: Environment variables specified in ``ConfigData`` will override the environment variables
-with the same name found in the system if consumed as environment variables.
+### Mounted Volume
+
+The component configuration workflow is given below:
+
+1. ``ConfigData`` object is created through the API server.
+2. New components using the ``ConfigData`` object are created.
+3. ``ConfigData`` object is retrieved using the downward API.
+4. ``ConfigData`` will be mounted as a new volume (``ConfigDataVolumeSource``) where keys are file names and values are file contents.
+5. API server is watched for modifications to the object.
+6. After a modification, actions 3, 4, and 5 are repeated.
 
 ## Examples
 
