@@ -159,8 +159,9 @@ The component configuration workflow is given below:
     "kind": "ConfigData",
     "data": {
         "redis.conf": "pidfile /var/run/redis.pid\nport6379\ntcp-backlog 511\n databases 1\ntimeout 0\n",
-        "slave_run.sh": "#!/bin/bash\nredis-server --slaveof ${REDISMASTER_SERVICE_HOST:-$SERVICE_HOST} $REDISMASTER_SERVICE_PORT\n"
+        "slave_run.sh": "#!/bin/bash\nredis-server --slaveof ${REDISMASTER_SERVICE_HOST:-$SERVICE_HOST} $REDISMASTER_SERVICE_PORT\n",
         "redis_dockerbuild.sh": "docker build -t redis\ndocker build -t redis-master\ndocker build -t redis-slave\n"
+    }
 }
 ```
 
