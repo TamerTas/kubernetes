@@ -23,8 +23,8 @@ Specifically the problems with the current approach are:
 
 ## Use Cases
 
-1. Be able to load API resources as environment variables into a component.
-2. Be able to load API resources as mounted volumes into a component.
+1. Be able to load API resources as environment variables into a container.
+2. Be able to load API resources as mounted volumes into a container.
 3. Be able to update mounted volumes after a change to the API resource.
 
 ## Solution
@@ -41,9 +41,9 @@ variables to a container through the use of the downward API.
 Any long-running system has mutating specification over time. In order to facilitate this functionality,
 `ConfigData` will be versioned and updates will automatically made available to the container.
 
-`resourceVersion` (Found in `ObjectMetadata`) of the `ConfigData` object will be updated by the API server every time the object is modified.  After an update, modifications will be made visible to the consumer container. If the consumer uses the `Data` pairs only for initialization or during starting process, A rolling-update might be necessary to update the components.
+`resourceVersion` (Found in `ObjectMetadata`) of the `ConfigData` object will be updated by the API server every time the object is modified.  After an update, modifications will be made visible to the consumer container. If the consumer uses the `Data` pairs only for initialization or during starting process, A rolling-update might be necessary to update the containers.
 
-It is then the consumer component's responsibility to make use of the updated data
+It is then the consumer container's responsibility to make use of the updated data
 once it is made visible (or perform a rolling-update on consumers of that object. This is especially true if `ConfigData` is injected as environment variables. Dynamic configuration with environment variables is out of scope).
 
 ### Advantages
@@ -59,29 +59,29 @@ once it is made visible (or perform a rolling-update on consumers of that object
 A new resource for `ConfigData` will be added to the `Extentions` API Group:
 
 ```go
-	type ConfigData struct {
-		TypeMeta   `json:",inline"`
-		ObjectMeta `json:"metadata,omitempty"`
+type ConfigData struct {
+	TypeMeta   `json:",inline"`
+	ObjectMeta `json:"metadata,omitempty"`
 
-		Data map[string]string `json:"data,omitempty"`
-	}
+	Data map[string]string `json:"data,omitempty"`
+}
 
-	type ConfigDataList struct {
-		TypeMeta `json:",inline"`
-		ListMeta `json:"metadata,omitempty"`
+type ConfigDataList struct {
+	TypeMeta `json:",inline"`
+	ListMeta `json:"metadata,omitempty"`
 
-		Items []ConfigData `json:"items"`
-	}
+	Items []ConfigData `json:"items"`
+}
 
-	type ConfigDataVolumeSource struct {
-		ConfigDataName string `json:"configDataName"`
-	}
+type ConfigDataVolumeSource struct {
+	ConfigDataName string `json:"configDataName"`
+}
 
-	type ConfigDataSelector struct {
-		APIVersion      string `json:"apiVersion, omitempty"`
-		ConfigDataName  string `json:"from"`
-		ConfigDataField string `json:"key"`
-	}
+type ConfigDataSelector struct {
+	APIVersion      string `json:"apiVersion, omitempty"`
+	ConfigDataName  string `json:"from"`
+	ConfigDataField string `json:"key"`
+}
 ```
 
 `Registry` interface will be added to "pkg/registry/configdata" along with the `ConfigData` resources.  
@@ -127,19 +127,19 @@ The new object can be accessed, referenced, used and updated through the API ser
 
 ### Environment Variables
 
-The component configuration workflow is given below:
+The container configuration workflow is given below:
 
 1. `ConfigData` object is created through the API server.
-2. New components using the `ConfigData` object are created.
+2. New containers using the `ConfigData` object are created.
 3. `ConfigData` object is retrieved using the downward API.
 4. `Data` key/value pairs of `ConfigData` will be exposed as environment variables (`EnvVarSource`).
 
 ### Mounted Volume
 
-The component configuration workflow is given below:
+The container configuration workflow is given below:
 
 1. `ConfigData` object is created through the API server.
-2. New components using the `ConfigData` object are created.
+2. New containers using the `ConfigData` object are created.
 3. `ConfigData` object is retrieved using the downward API.
 4. `ConfigData` will be mounted as a new volume (`ConfigDataVolumeSource`) where keys are file names and values are file contents.
 5. API server is watched for modifications to the object.
@@ -147,7 +147,7 @@ The component configuration workflow is given below:
 
 ## Examples
 
-#### Consuming ConfigData as mounted volumes
+#### Consuming ConfigData as volumes
 
 `redis-volume-config` is intended to be used as a mounted volume containing two files with their respective contents.
 ```json
@@ -249,7 +249,7 @@ We create our `ConfigData` object.
 kubectl create -f etcd-env-config.json
 ```
 
-Replication controller given below starts 2 replicas that runs the openshift-etcd container image.
+The replication controller given below starts 2 replicas that runs the openshift-etcd container image.
 In this use case, the `ConfigData` object will be consumed as 6 environment variables.
 
 ```yaml
