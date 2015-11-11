@@ -123,9 +123,9 @@ type EnvVarSource struct {
 }
 
 type ConfigDataSelector struct {
-  APIVersion string `json:"apiVersion,omitempty"`
-  From       string `json:"from"`
-  Key        string `json:"key"`
+  APIVersion     string `json:"apiVersion,omitempty"`
+  ConfigDataName string `json:"configDataName"`
+  Key            string `json:"key"`
 }
 ```
 
@@ -192,27 +192,27 @@ spec:
     - name: ETCD_NUM_MEMBERS
       valueFrom:
         configData:
-          from: etcd-env-config
+          configDataName: etcd-env-config
           key: num_members
     - name: ETCD_INITIAL_CLUSTER_STATE
       valueFrom:
         configData:
-          from: etcd-env-config
+          configDataName: etcd-env-config
           key: initial_cluster_state
     - name: ETCD_DISCOVERY_TOKEN
       valueFrom:
         configData:
-          from: etcd-env-config
+          configDataName: etcd-env-config
           key: dicovery_token
     - name: ETCD_DISCOVERY_URL
       valueFrom:
         configData:
-          from: etcd-env-config
+          configDataName: etcd-env-config
           key: discovery_url
     - name: ETCDCTL_PEERS
       valueFrom:
         configData:
-          from: etcd-env-config
+          configDataName: etcd-env-config
           key: etcdctl_peers
 ```
 
@@ -253,7 +253,6 @@ spec:
             from: redis-volume-config
             fieldPath: redis.conf
 ```
-
 
 ### Future Improvements
 
