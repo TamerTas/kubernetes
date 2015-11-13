@@ -127,10 +127,13 @@ The `ConfigData` resource will be added to the `extensions` API Group:
 ```go
 package api
 
+// ConfigData holds configuration data for pods to consume.
 type ConfigData struct {
 	TypeMeta   `json:",inline"`
 	ObjectMeta `json:"metadata,omitempty"`
 
+  // Data contains the configuration data.  Each key must be a valid DNS_SUBDOMAIN or leading
+  // dot followed by valid DNS_SUBDOMAIN.
 	Data map[string]string `json:"data,omitempty"`
 }
 
@@ -138,7 +141,7 @@ type ConfigDataList struct {
 	TypeMeta `json:",inline"`
 	ListMeta `json:"metadata,omitempty"`
 
-	Items []ConfigData `json:"items,omitempty"`
+	Items []ConfigData `json:"items"`
 }
 ```
 
@@ -151,14 +154,20 @@ The `EnvVarSource` will be extended with a new selector for config data:
 ```go
 package api
 
+// EnvVarSource represents a source for the value of an EnvVar.
 type EnvVarSource struct {
+  // other fields omitted
+
+  // Specifies a ConfigData key
   ConfigData *ConfigDataSelector `json:"configData,omitempty"`
 }
 
+// ConfigDataSelector selects a key of a ConfigData.
 type ConfigDataSelector struct {
-  APIVersion     string `json:"apiVersion,omitempty"`
+  // The name of the ConfigData to select a key from.
   ConfigDataName string `json:"configDataName"`
-  Key            string `json:"key"`
+  // The key of the ConfigData to select.
+  Key string `json:"key"`
 }
 ```
 
@@ -175,16 +184,21 @@ type VolumeSource struct {
   ConfigData *ConfigDataVolumeSource `json:"configData,omitempty"`
 }
 
+// ConfigDataVolumeSource represents a volume that holds configuration data
 type ConfigDataVolumeSource struct {
-  Items []ConfigDataVolumeFile `json:"items,omitempty"`
+  // A list of config data keys to project into the volume in files
+  Files []ConfigDataVolumeFile `json:"files"`
 }
 
+// ConfigDataVolumeFile represents a single file containing config data
 type ConfigDataVolumeFile struct {
-  Path       string             `json:"path"`
-  ConfigData ConfigDataSelector `json:"configData"`
+  ConfigDataSelector `json:",inline"`
+
+  // The relative path name of the file to be created.
+  // Must not be absolute or contain the '..' path. Must be utf-8 encoded.
+  // The first item of the relative path must not start with '..'
+  Path string `json:"path"`
 }
-
-
 ```
 
 **Note:** The update logic used in the downward API volume plug-in will be extracted and re-used in
@@ -196,8 +210,9 @@ the volume plug-in for `ConfigData`.
 
 ```yaml
 apiVersion: extensions/v1beta1
-name: etcd-env-config
 kind: ConfigData
+metadata:
+  name: etcd-env-config
 data:
   number_of_members: 1
   initial_cluster_state: new
@@ -212,6 +227,8 @@ This pod consumes the `ConfigData` as environment variables:
 ```yaml
 apiVersion: v1
 kind: Pod
+metadata:
+  name: config-env-example
 spec:
   containers:
   - name: etcd
@@ -255,8 +272,9 @@ spec:
 
 ```yaml
 apiVersion: extensions/v1beta1
-name: redis-volume-config
 kind: ConfigData
+metadata:
+  name: redis-volume-config
 data:
   redis.conf: "pidfile /var/run/redis.pid\nport6379\ntcp-backlog 511\n databases 1\ntimeout 0\n"
 ```
@@ -266,7 +284,8 @@ The following pod consumes the `redis-volume-config` in a volume:
 ```yaml
 apiVersion: v1
 kind: Pod
-name: example-volume-pod
+metadata:
+  name: config-volume-example
 spec:
   containers:
     - name: redis
@@ -279,12 +298,11 @@ spec:
           mountPath: /mnt/config-data
   volumes:
   - name: config-data-volume
-    configDataVolumes:
-      items:
+    configData:
+      files:
         - path: "etc/redis.conf"
-          configData:
-            from: redis-volume-config
-            fieldPath: redis.conf
+          configDataName: redis-volume-config
+          key: redis.conf
 ```
 
 ### Future Improvements
