@@ -74,6 +74,25 @@ func (ClusterAutoscalerSpec) SwaggerDoc() map[string]string {
 	return map_ClusterAutoscalerSpec
 }
 
+var map_ConfigData = map[string]string{
+	"":         "ConfigData holds configuration data for pods to consume.",
+	"metadata": "Standard object metadata; More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata.",
+	"data":     "Data contains the configuration data. Each key must be a valid DNS_SUBDOMAIN with an optional leading dot.",
+}
+
+func (ConfigData) SwaggerDoc() map[string]string {
+	return map_ConfigData
+}
+
+var map_ConfigDataList = map[string]string{
+	"":         "ConfigDataList is a resource containing a list of ConfigData objects.",
+	"metadata": "More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata",
+}
+
+func (ConfigDataList) SwaggerDoc() map[string]string {
+	return map_ConfigDataList
+}
+
 var map_DaemonSet = map[string]string{
 	"":         "DaemonSet represents the configuration of a daemon set.",
 	"metadata": "Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata",

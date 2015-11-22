@@ -2245,6 +2245,58 @@ func convert_extensions_ClusterAutoscalerSpec_To_v1beta1_ClusterAutoscalerSpec(i
 	return autoconvert_extensions_ClusterAutoscalerSpec_To_v1beta1_ClusterAutoscalerSpec(in, out, s)
 }
 
+func autoconvert_extensions_ConfigData_To_v1beta1_ConfigData(in *extensions.ConfigData, out *ConfigData, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*extensions.ConfigData))(in)
+	}
+	if err := s.Convert(&in.TypeMeta, &out.TypeMeta, 0); err != nil {
+		return err
+	}
+	if err := convert_api_ObjectMeta_To_v1_ObjectMeta(&in.ObjectMeta, &out.ObjectMeta, s); err != nil {
+		return err
+	}
+	if in.Data != nil {
+		out.Data = make(map[string]string)
+		for key, val := range in.Data {
+			out.Data[key] = val
+		}
+	} else {
+		out.Data = nil
+	}
+	return nil
+}
+
+func convert_extensions_ConfigData_To_v1beta1_ConfigData(in *extensions.ConfigData, out *ConfigData, s conversion.Scope) error {
+	return autoconvert_extensions_ConfigData_To_v1beta1_ConfigData(in, out, s)
+}
+
+func autoconvert_extensions_ConfigDataList_To_v1beta1_ConfigDataList(in *extensions.ConfigDataList, out *ConfigDataList, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*extensions.ConfigDataList))(in)
+	}
+	if err := s.Convert(&in.TypeMeta, &out.TypeMeta, 0); err != nil {
+		return err
+	}
+	if err := s.Convert(&in.ListMeta, &out.ListMeta, 0); err != nil {
+		return err
+	}
+	if in.Items != nil {
+		out.Items = make([]ConfigData, len(in.Items))
+		for i := range in.Items {
+			if err := convert_extensions_ConfigData_To_v1beta1_ConfigData(&in.Items[i], &out.Items[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
+	return nil
+}
+
+func convert_extensions_ConfigDataList_To_v1beta1_ConfigDataList(in *extensions.ConfigDataList, out *ConfigDataList, s conversion.Scope) error {
+	return autoconvert_extensions_ConfigDataList_To_v1beta1_ConfigDataList(in, out, s)
+}
+
 func autoconvert_extensions_DaemonSet_To_v1beta1_DaemonSet(in *extensions.DaemonSet, out *DaemonSet, s conversion.Scope) error {
 	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
 		defaulting.(func(*extensions.DaemonSet))(in)
@@ -3232,6 +3284,58 @@ func convert_v1beta1_ClusterAutoscalerSpec_To_extensions_ClusterAutoscalerSpec(i
 	return autoconvert_v1beta1_ClusterAutoscalerSpec_To_extensions_ClusterAutoscalerSpec(in, out, s)
 }
 
+func autoconvert_v1beta1_ConfigData_To_extensions_ConfigData(in *ConfigData, out *extensions.ConfigData, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*ConfigData))(in)
+	}
+	if err := s.Convert(&in.TypeMeta, &out.TypeMeta, 0); err != nil {
+		return err
+	}
+	if err := convert_v1_ObjectMeta_To_api_ObjectMeta(&in.ObjectMeta, &out.ObjectMeta, s); err != nil {
+		return err
+	}
+	if in.Data != nil {
+		out.Data = make(map[string]string)
+		for key, val := range in.Data {
+			out.Data[key] = val
+		}
+	} else {
+		out.Data = nil
+	}
+	return nil
+}
+
+func convert_v1beta1_ConfigData_To_extensions_ConfigData(in *ConfigData, out *extensions.ConfigData, s conversion.Scope) error {
+	return autoconvert_v1beta1_ConfigData_To_extensions_ConfigData(in, out, s)
+}
+
+func autoconvert_v1beta1_ConfigDataList_To_extensions_ConfigDataList(in *ConfigDataList, out *extensions.ConfigDataList, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*ConfigDataList))(in)
+	}
+	if err := s.Convert(&in.TypeMeta, &out.TypeMeta, 0); err != nil {
+		return err
+	}
+	if err := s.Convert(&in.ListMeta, &out.ListMeta, 0); err != nil {
+		return err
+	}
+	if in.Items != nil {
+		out.Items = make([]extensions.ConfigData, len(in.Items))
+		for i := range in.Items {
+			if err := convert_v1beta1_ConfigData_To_extensions_ConfigData(&in.Items[i], &out.Items[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
+	return nil
+}
+
+func convert_v1beta1_ConfigDataList_To_extensions_ConfigDataList(in *ConfigDataList, out *extensions.ConfigDataList, s conversion.Scope) error {
+	return autoconvert_v1beta1_ConfigDataList_To_extensions_ConfigDataList(in, out, s)
+}
+
 func autoconvert_v1beta1_DaemonSet_To_extensions_DaemonSet(in *DaemonSet, out *extensions.DaemonSet, s conversion.Scope) error {
 	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
 		defaulting.(func(*DaemonSet))(in)
@@ -4148,6 +4252,8 @@ func init() {
 		autoconvert_extensions_ClusterAutoscalerList_To_v1beta1_ClusterAutoscalerList,
 		autoconvert_extensions_ClusterAutoscalerSpec_To_v1beta1_ClusterAutoscalerSpec,
 		autoconvert_extensions_ClusterAutoscaler_To_v1beta1_ClusterAutoscaler,
+		autoconvert_extensions_ConfigDataList_To_v1beta1_ConfigDataList,
+		autoconvert_extensions_ConfigData_To_v1beta1_ConfigData,
 		autoconvert_extensions_DaemonSetList_To_v1beta1_DaemonSetList,
 		autoconvert_extensions_DaemonSetSpec_To_v1beta1_DaemonSetSpec,
 		autoconvert_extensions_DaemonSetStatus_To_v1beta1_DaemonSetStatus,
@@ -4234,6 +4340,8 @@ func init() {
 		autoconvert_v1beta1_ClusterAutoscalerList_To_extensions_ClusterAutoscalerList,
 		autoconvert_v1beta1_ClusterAutoscalerSpec_To_extensions_ClusterAutoscalerSpec,
 		autoconvert_v1beta1_ClusterAutoscaler_To_extensions_ClusterAutoscaler,
+		autoconvert_v1beta1_ConfigDataList_To_extensions_ConfigDataList,
+		autoconvert_v1beta1_ConfigData_To_extensions_ConfigData,
 		autoconvert_v1beta1_DaemonSetList_To_extensions_DaemonSetList,
 		autoconvert_v1beta1_DaemonSetSpec_To_extensions_DaemonSetSpec,
 		autoconvert_v1beta1_DaemonSetStatus_To_extensions_DaemonSetStatus,
