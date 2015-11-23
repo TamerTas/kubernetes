@@ -622,20 +622,20 @@ func ValidateConfigData(cfg *extensions.ConfigData) errs.ValidationErrorList {
 
 	if len(cfg.Data) == 0 {
 		allErrs = append(allErrs, errs.NewFieldRequired("data"))
-	} else {
-		for key := range cfg.Data {
-			isValid, errStr := true, ""
+	}
 
-			// For keys with a leading dot.
-			if strings.HasPrefix(key, ".") {
-				isValid, errStr = apivalidation.NameIsDNSSubdomain(key[1:], false)
-			} else {
-				isValid, errStr = apivalidation.NameIsDNSSubdomain(key, false)
-			}
+	for key, value := range cfg.Data {
+		isValid, errStr := true, ""
 
-			if !isValid {
-				allErrs = append(allErrs, errs.NewFieldInvalid("data", cfg.Data, errStr))
-			}
+		// For keys with a leading dot.
+		if strings.HasPrefix(key, ".") {
+			isValid, errStr = apivalidation.NameIsDNSSubdomain(key[1:], false)
+		} else {
+			isValid, errStr = apivalidation.NameIsDNSSubdomain(key, false)
+		}
+
+		if !isValid {
+			allErrs = append(allErrs, errs.NewFieldInvalid(fmt.Sprintf("data[%s]", key), value, errStr))
 		}
 	}
 

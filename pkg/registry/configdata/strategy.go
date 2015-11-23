@@ -51,7 +51,7 @@ func (strategy) NamespaceScoped() bool {
 }
 
 func (strategy) PrepareForCreate(obj runtime.Object) {
-	_ := obj.(*extensions.ConfigData)
+	_ = obj.(*extensions.ConfigData)
 }
 
 func (strategy) Validate(ctx api.Context, obj runtime.Object) fielderrors.ValidationErrorList {

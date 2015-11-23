@@ -54,8 +54,11 @@ func TestConfigDataStrategy(t *testing.T) {
 
 	cfg := &extensions.ConfigData{
 		ObjectMeta: api.ObjectMeta{
-			Name:      "validConfigData",
+			Name:      "valid-config-data",
 			Namespace: api.NamespaceDefault,
+		},
+		Data: map[string]string{
+			"foo": "bar",
 		},
 	}
 
@@ -68,12 +71,12 @@ func TestConfigDataStrategy(t *testing.T) {
 
 	newCfg := &extensions.ConfigData{
 		ObjectMeta: api.ObjectMeta{
-			Name:            "validConfigData2",
+			Name:            "valid-config-data-2",
 			Namespace:       api.NamespaceDefault,
-			ResourceVersion: "2",
+			ResourceVersion: "4",
 		},
 		Data: map[string]string{
-			"key": "updatedValue",
+			"invalidKey": "updatedValue",
 		},
 	}
 
@@ -95,51 +98,53 @@ func newConfigData() extensions.ConfigData {
 			ResourceVersion: "1",
 		},
 		Data: map[string]string{
-			"validKey": "validValue",
+			"valid-key": "validValue",
 		},
 	}
 }
 
 func TestBeforeUpdate(t *testing.T) {
-	testCases := []struct {
-		Name   string
-		Update func(oldCfg, newCfg *extensions.ConfigData)
-		Err    bool
+	cases := []struct {
+		name   string
+		update func(_, _ *extensions.ConfigData)
+		err    bool
 	}{
 		{
-			Name: "no change",
-			Update: func(_, _ *extensions.ConfigData) {
-			},
-			Err: false,
+			name:   "no change",
+			update: func(_, _ *extensions.ConfigData) {},
+			err:    false,
 		},
 		{
-			Name: "bad namespace",
-			Update: func(oldCfg, newCfg *extensions.ConfigData) {
+			name: "bad namespace",
+			update: func(_, newCfg *extensions.ConfigData) {
 				newCfg.Namespace = "#$%%invalid"
 			},
-			Err: true,
+			err: true,
 		},
 		{
-			Name: "update data",
-			Update: func(oldCfg, newCfg *extensions.ConfigData) {
-				newCfg.Data["validKey2"] = "validValue2"
+			name: "bad update to data",
+			update: func(_, newCfg *extensions.ConfigData) {
+				newCfg.Data["%%#@$invalidKey"] = "validValue2"
 			},
-			Err: true,
+			err: true,
 		},
 	}
 
-	for _, tc := range testCases {
-		oldCfg, newCfg := newConfigData(), newConfigData()
+	for _, tc := range cases {
+		var (
+			oldCfg = newConfigData()
+			newCfg = newConfigData()
+		)
 
-		tc.Update(&oldCfg, &newCfg)
+		tc.update(&oldCfg, &newCfg)
 
 		ctx := api.NewDefaultContext()
-		err := rest.BeforeUpdate(Strategy, ctx, runtime.Object(&oldCfg), runtime.Object(&newCfg))
-		if tc.Err && err == nil {
-			t.Errorf("expected error for %q, got %v", tc.Name, err)
+		err := rest.BeforeUpdate(Strategy, ctx, runtime.Object(&newCfg), runtime.Object(&oldCfg))
+		if tc.err && err == nil {
+			t.Errorf("expected error for %q, got %v", tc.name, err)
 		}
-		if !tc.Err && err != nil {
-			t.Errorf("unexpected error for %q: got %v", tc.Name, err)
+		if !tc.err && err != nil {
+			t.Errorf("unexpected error for %q: got %v", tc.name, err)
 		}
 	}
 }
