@@ -25,13 +25,12 @@ import (
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/registry/registrytest"
 	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/tools"
+	etcdtesting "k8s.io/kubernetes/pkg/storage/etcd/testing"
 )
 
-func newStorage(t *testing.T) (*REST, *tools.FakeEtcdClient) {
-	etcdStorage, fakeClient := registrytest.NewEtcdStorage(t, "extensions")
-
-	return NewREST(etcdStorage), fakeClient
+func newStorage(t *testing.T) (*REST, *etcdtesting.EtcdTestServer) {
+	etcdStorage, server := registrytest.NewEtcdStorage(t, "extensions")
+	return NewREST(etcdStorage), server
 }
 
 func validNewConfigData() *extensions.ConfigData {
@@ -47,8 +46,9 @@ func validNewConfigData() *extensions.ConfigData {
 }
 
 func TestCreate(t *testing.T) {
-	storage, fakeClient := newStorage(t)
-	test := registrytest.New(t, fakeClient, storage.Etcd)
+	storage, server := newStorage(t)
+	defer server.Terminate(t)
+	test := registrytest.New(t, storage.Etcd)
 
 	validConfigData := validNewConfigData()
 	validConfigData.ObjectMeta = api.ObjectMeta{
@@ -57,7 +57,6 @@ func TestCreate(t *testing.T) {
 
 	test.TestCreate(
 		validConfigData,
-		&extensions.ConfigData,
 		&extensions.ConfigData{
 			ObjectMeta: api.ObjectMeta{Name: "name"},
 			Data: map[string]string{
@@ -67,15 +66,15 @@ func TestCreate(t *testing.T) {
 		&extensions.ConfigData{
 			ObjectMeta: api.ObjectMeta{Name: "name"},
 			Data: map[string]string{
-				"dotfile": "do: nothing\n",
+				".dotfile": "do: nothing\n",
 			},
 		},
 	)
 }
 
 func TestUpdate(t *testing.T) {
-	storage, fakeClient := newStorage(t)
-	test := registrytest.New(t, fakeClient, storage.Etcd)
+	storage, _ := newStorage(t)
+	test := registrytest.New(t, storage.Etcd)
 	test.TestUpdate(
 		// valid
 		validNewConfigData(),
@@ -94,26 +93,26 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	storage, fakeClient := newStorage(t)
-	test := registrytest.New(t, fakeClient, storage.Etcd)
+	storage, _ := newStorage(t)
+	test := registrytest.New(t, storage.Etcd)
 	test.TestDelete(validNewConfigData())
 }
 
 func TestGet(t *testing.T) {
-	storage, fakeClient := newStorage(t)
-	test := registrytest.New(t, fakeClient, storage.Etcd)
+	storage, _ := newStorage(t)
+	test := registrytest.New(t, storage.Etcd)
 	test.TestGet(validNewConfigData())
 }
 
 func TestList(t *testing.T) {
-	storage, fakeClient := newStorage(t)
-	test := registrytest.New(t, fakeClient, storage.Etcd)
+	storage, _ := newStorage(t)
+	test := registrytest.New(t, storage.Etcd)
 	test.TestList(validNewConfigData())
 }
 
 func TestWatch(t *testing.T) {
-	storage, fakeClient := newStorage(t)
-	test := registrytest.New(t, fakeClient, storage.Etcd)
+	storage, _ := newStorage(t)
+	test := registrytest.New(t, storage.Etcd)
 	test.TestWatch(
 		validNewConfigData(),
 		// matching labels

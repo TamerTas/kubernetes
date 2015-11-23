@@ -17,6 +17,7 @@ limitations under the License.
 package etcd
 
 import (
+	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/registry/configdata"
 	"k8s.io/kubernetes/pkg/runtime"
@@ -46,13 +47,13 @@ func NewREST(storageInterface storage.Interface) *REST {
 
 		// Produces a path that etcd understands, to the root of the resource
 		// by combining the namespace in the context with the given prefix.
-		KeyRootFunc: func(ctx extensions.Context) string {
+		KeyRootFunc: func(ctx api.Context) string {
 			return etcdgeneric.NamespaceKeyRootFunc(ctx, cfgPrefix)
 		},
 
 		// Produces a path that etcd understands, to the resource by combining
 		// the namespace in the context with the given prefix
-		KeyFunc: func(ctx extensions.Context, name string) (string, error) {
+		KeyFunc: func(ctx api.Context, name string) (string, error) {
 			return etcdgeneric.NamespaceKeyFunc(ctx, cfgPrefix, name)
 		},
 
