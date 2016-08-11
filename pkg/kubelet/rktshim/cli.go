@@ -18,10 +18,13 @@ limitations under the License.
 package rktshim
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
 	"strings"
+
+	utilexec "k8s.io/kubernetes/pkg/util/exec"
 )
 
 var (
@@ -84,4 +87,73 @@ func getArgumentFormOfStruct(strt interface{}) (flags []string) {
 
 func getFlagFormOfStruct(strt interface{}) (flags []string) {
 	return getArgumentFormOfStruct(strt)
+}
+
+type CLIConfig struct {
+	Debug bool `flag:"debug"`
+
+	Dir             string `flag:"dir"`
+	LocalConfigDir  string `flag:"local-config"`
+	UserConfigDir   string `flag:"user-config"`
+	SystemConfigDir string `flag:"system-config"`
+
+	InsecureOptions string `flag:"insecure-options"`
+}
+
+func (cfg *CLIConfig) Merge(newCfg CLIConfig) {
+	newCfgVal := reflect.ValueOf(newCfg)
+
+	numberOfFields := newCfgVal.NumField()
+
+	for i := 0; i < numberOfFields; i++ {
+		fieldValue := newCfgVal.Field(i)
+
+		if !fieldValue.IsValid() {
+			continue
+		}
+
+		newCfgVal.FieldByName(fieldValue.Name()).Set(fieldValue)
+	}
+}
+
+type CLI interface {
+	With(CLIConfig) CLI
+	RunCommand(string, ...string) ([]string, error)
+}
+
+type cli struct {
+	rktPath string
+	config  CLIConfig
+	execer  utilexec.Interface
+}
+
+func (c *cli) With(cfg CLIConfig) CLI {
+	newC := NewRktCLI(c.rktPath, c.config, c.execer)
+
+	newC.config.Merge(cfg)
+
+	return newC
+}
+
+func (c *cli) RunCommand(subcmd string, args ...string) ([]string, error) {
+	globalFlags := GetFlagFormOfStruct(cmd.config)
+
+	args := append(globalFlags, args...)
+
+	cmd := cmd.execer.Command(c.rktPath, append([]string{subcmd}, args...)...)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+
+	//glog.V(4).Infof("rkt: Run command: %q with args: %#v", subcmd, args)
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("failed to run %v: %v\nstdout: %v\nstderr: %v", args, err, stdout.String(), stderr.String())
+	}
+
+	return strings.Split(strings.TrimSpace(stdout.String()), "\n"), nil
+}
+
+func NewRktCLI(rktPath string, cfg Config, exec utilexec.Interface) CLI {
+	return &cli{rktPath: rktPath, config: cfg, execer: exec}
 }
